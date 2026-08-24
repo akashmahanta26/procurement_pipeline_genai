@@ -1,5 +1,23 @@
 # Procurement Data Automation
-An end-to-end intelligent data pipeline built on the **Databricks Lakehouse Platform** (Unity Catalog) that automates procurement document processing, matching, and validation using advanced AI and LLM foundation models.
+An end-to-end intelligent data pipeline built on the Databricks Lakehouse Platform (Unity Catalog) that **automates procurement document processing, matching, and validation** using advanced AI and LLM foundation models.
+
+# Business Need Overview
+
+## PO, Invoice & Goods Receipt Matching
+
+### 2-Way Match — PO vs Invoice
+
+* Match **PO Number, Vendor Name, and Material Name**.
+* Validate invoice amount:
+  `PO Quantity × PO Unit Price = Invoice Amount`
+
+### 3-Way Match — PO vs Invoice vs Goods Receipt (GR)
+
+* Perform all **2-way match checks**.
+* Validate invoiced quantity:
+  `Invoice Quantity = GR Received Quantity`
+* Validate **delivery dates** against the PO and goods receipt records.
+
 
 # Project Architecture 
 
