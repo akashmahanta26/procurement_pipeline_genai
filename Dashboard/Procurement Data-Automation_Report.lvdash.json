@@ -1,0 +1,534 @@
+{
+  "datasets": [
+    {
+      "name": "d5ca2ef6",
+      "displayName": "Invoice Matching Summary and Review Metrics Dataset",
+      "queryLines": [
+        "SELECT\r\n",
+        "    SUM(invoice_amount) AS total_invoice_value,\r\n",
+        "\r\n",
+        "    SUM(\r\n",
+        "        CASE\r\n",
+        "            WHEN overall_match THEN invoice_amount\r\n",
+        "            ELSE 0\r\n",
+        "        END\r\n",
+        "    ) AS matched_invoice_value,\r\n",
+        "\r\n",
+        "    SUM(\r\n",
+        "        CASE\r\n",
+        "            WHEN NOT overall_match THEN invoice_amount\r\n",
+        "            ELSE 0\r\n",
+        "        END\r\n",
+        "    ) AS unmatched_invoice_value,\r\n",
+        "\r\n",
+        "    COUNT(\r\n",
+        "        CASE\r\n",
+        "            WHEN NOT overall_match THEN 1\r\n",
+        "        END\r\n",
+        "    ) AS invoices_requiring_review\r\n",
+        "\r\n",
+        "FROM three_way_match_results;"
+      ],
+      "catalog": "dev_p2p",
+      "schema": "gold"
+    },
+    {
+      "name": "e13b4ad6",
+      "displayName": "3 way invoice match analysis",
+      "queryLines": [
+        "SELECT\r\n",
+        "    'Fully Matched (PO + GR)' AS category,\r\n",
+        "    COUNT(*) AS count,\r\n",
+        "    SUM(invoice_amount) AS total_value\r\n",
+        "FROM three_way_match_results\r\n",
+        "WHERE po_match AND gr_match\r\n",
+        "\r\n",
+        "UNION ALL\r\n",
+        "\r\n",
+        "SELECT\r\n",
+        "    'PO Match Only',\r\n",
+        "    COUNT(*),\r\n",
+        "    SUM(invoice_amount)\r\n",
+        "FROM three_way_match_results\r\n",
+        "WHERE po_match AND NOT gr_match\r\n",
+        "\r\n",
+        "UNION ALL\r\n",
+        "\r\n",
+        "SELECT\r\n",
+        "    'GR Match Only',\r\n",
+        "    COUNT(*),\r\n",
+        "    SUM(invoice_amount)\r\n",
+        "FROM three_way_match_results\r\n",
+        "WHERE gr_match AND NOT po_match\r\n",
+        "\r\n",
+        "UNION ALL\r\n",
+        "\r\n",
+        "SELECT\r\n",
+        "    'No Matches',\r\n",
+        "    COUNT(*),\r\n",
+        "    SUM(invoice_amount)\r\n",
+        "FROM three_way_match_results\r\n",
+        "WHERE NOT po_match AND NOT gr_match;"
+      ],
+      "catalog": "dev_p2p",
+      "schema": "gold"
+    },
+    {
+      "name": "c439f005",
+      "displayName": "Invoice Match Success Metric Summary",
+      "queryLines": [
+        "SELECT\r\n",
+        "    COUNT(*) AS total_invoices,\r\n",
+        "\r\n",
+        "    SUM(\r\n",
+        "        CASE\r\n",
+        "            WHEN overall_match THEN 1\r\n",
+        "            ELSE 0\r\n",
+        "        END\r\n",
+        "    ) AS fully_matched,\r\n",
+        "\r\n",
+        "    ROUND(\r\n",
+        "        SUM(\r\n",
+        "            CASE\r\n",
+        "                WHEN overall_match THEN 1\r\n",
+        "                ELSE 0\r\n",
+        "            END\r\n",
+        "        ) * 100.0 / COUNT(*),\r\n",
+        "        2\r\n",
+        "    ) AS match_success_rate_pct\r\n",
+        "\r\n",
+        "FROM three_way_match_results;"
+      ],
+      "catalog": "dev_p2p",
+      "schema": "gold"
+    },
+    {
+      "name": "dde57d05",
+      "displayName": "Top Discrepancy types and Impact in Invoices",
+      "queryLines": [
+        "SELECT \r\n",
+        "    invoice_number,\r\n",
+        "    explode(discrepancies) AS discrepancy_type,\r\n",
+        "    COUNT(*) AS frequency,\r\n",
+        "    SUM(invoice_amount) AS impact_value\r\n",
+        "FROM three_way_match_results\r\n",
+        "WHERE SIZE(discrepancies) > 0\r\n",
+        "GROUP BY 1,2\r\n",
+        "ORDER BY frequency DESC\r\n",
+        "LIMIT 10;"
+      ],
+      "catalog": "dev_p2p",
+      "schema": "gold"
+    },
+    {
+      "name": "4ab80099",
+      "displayName": "Confidence Scores",
+      "queryLines": [
+        "SELECT\r\n",
+        "    CASE\r\n",
+        "        WHEN confidence >= 0.9 THEN 'High (90–100%)'\r\n",
+        "        WHEN confidence >= 0.7 THEN 'Medium (70–89%)'\r\n",
+        "        WHEN confidence >= 0.5 THEN 'Low (50–69%)'\r\n",
+        "        ELSE 'Very Low (<50%)'\r\n",
+        "    END AS confidence_level,\r\n",
+        "\r\n",
+        "    COUNT(*) AS invoice_count,\r\n",
+        "    ROUND(AVG(confidence), 3) AS avg_confidence,\r\n",
+        "    SUM(invoice_amount) AS total_value\r\n",
+        "\r\n",
+        "FROM three_way_match_results\r\n",
+        "\r\n",
+        "GROUP BY 1\r\n",
+        "ORDER BY avg_confidence DESC;"
+      ],
+      "catalog": "dev_p2p",
+      "schema": "gold"
+    }
+  ],
+  "pages": [
+    {
+      "name": "ff105720",
+      "displayName": "3 way match",
+      "layout": [
+        {
+          "widget": {
+            "name": "25b4d14c",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dde57d05",
+                  "fields": [
+                    {
+                      "name": "invoice_number",
+                      "expression": "`invoice_number`"
+                    },
+                    {
+                      "name": "discrepancy_type",
+                      "expression": "`discrepancy_type`"
+                    },
+                    {
+                      "name": "frequency",
+                      "expression": "`frequency`"
+                    },
+                    {
+                      "name": "impact_value",
+                      "expression": "`impact_value`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Top Discrepancies by Frequency & Impact",
+                "showTitle": true
+              },
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "invoice_number",
+                    "useForSearch": true
+                  },
+                  {
+                    "fieldName": "discrepancy_type",
+                    "useForSearch": true
+                  },
+                  {
+                    "fieldName": "frequency"
+                  },
+                  {
+                    "fieldName": "impact_value"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "total-invoice-val",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "d5ca2ef6",
+                  "fields": [
+                    {
+                      "name": "matched_invoice_value",
+                      "expression": "`matched_invoice_value`"
+                    },
+                    {
+                      "name": "sum(unmatched_invoice_value)",
+                      "expression": "SUM(`unmatched_invoice_value`)"
+                    },
+                    {
+                      "name": "sum(matched_invoice_value)",
+                      "expression": "SUM(`matched_invoice_value`)"
+                    },
+                    {
+                      "name": "total_invoice_value",
+                      "expression": "`total_invoice_value`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "facet": {
+                "type": "wrap",
+                "fieldName": "total_invoice_value",
+                "scale": {
+                  "type": "categorical"
+                }
+              },
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Total Invoice Value vs Matched and Unmatched"
+              },
+              "mark": {
+                "colors": [
+                  {
+                    "themeColorType": "selectionColor"
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 2
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 3
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 4
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 5
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 6
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 7
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 8
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 9
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 10
+                  }
+                ]
+              },
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "matched_invoice_value",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "total_invoice_value"
+                },
+                "label": {
+                  "show": true
+                },
+                "extra": [
+                  {
+                    "fieldName": "sum(unmatched_invoice_value)"
+                  },
+                  {
+                    "fieldName": "sum(matched_invoice_value)"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "category",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e13b4ad6",
+                  "fields": [
+                    {
+                      "name": "category",
+                      "expression": "`category`"
+                    },
+                    {
+                      "name": "sum(total_value)",
+                      "expression": "SUM(`total_value`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Category Wise Invoice Value"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "category",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(total_value)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 7,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "in1",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "4ab80099",
+                  "fields": [
+                    {
+                      "name": "sum(invoice_count)",
+                      "expression": "SUM(`invoice_count`)"
+                    },
+                    {
+                      "name": "avg_confidence",
+                      "expression": "`avg_confidence`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Invoice Count by Confidence Level"
+              },
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(invoice_count)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "avg_confidence",
+                  "scale": {
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "scheme",
+                      "scheme": "blues"
+                    }
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "total1",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "c439f005",
+                  "fields": [
+                    {
+                      "name": "total_invoices",
+                      "expression": "`total_invoices`"
+                    },
+                    {
+                      "name": "fully_matched",
+                      "expression": "`fully_matched`"
+                    },
+                    {
+                      "name": "match_success_rate_pct",
+                      "expression": "`match_success_rate_pct`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "showTitle": true,
+                "title": "Total_Invoices_Matches"
+              },
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "total_invoices",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                },
+                "extra": [
+                  {
+                    "fieldName": "fully_matched"
+                  },
+                  {
+                    "fieldName": "match_success_rate_pct"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 13,
+            "width": 6,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}
